@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>呼吸道管理臨床訓練</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2230;--surface3:#21283a;
+  --teal:#2dd4bf;--teal-dim:#1a8a7a;--teal-glow:rgba(45,212,191,0.15);
+  --text:#e6edf3;--text-dim:#8b949e;--text-faint:#484f58;
+  --correct:#3fb950;--correct-bg:rgba(63,185,80,0.1);
+  --wrong:#f85149;--wrong-bg:rgba(248,81,73,0.1);
+  --warn:#d29922;--border:#30363d;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif}
+
+/* LAYOUT */
+#app{max-width:860px;margin:0 auto;padding:24px 16px;min-height:100vh}
+
+/* HEADER */
+.game-header{text-align:center;padding:40px 0 32px}
+.game-header h1{font-family:'Playfair Display',serif;font-size:clamp(24px,5vw,38px);color:#fff;letter-spacing:.02em}
+.game-header p{color:var(--text-dim);margin-top:8px;font-size:14px}
+
+/* STAGE NAV */
+.stage-nav{display:flex;gap:8px;justify-content:center;margin-bottom:32px;flex-wrap:wrap}
+.stage-dot{width:36px;height:36px;border-radius:50%;border:2px solid var(--border);background:var(--surface);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-family:'DM Mono',monospace;
+  color:var(--text-dim);transition:.3s;position:relative}
+.stage-dot.active{border-color:var(--teal);color:var(--teal);box-shadow:0 0 12px var(--teal-glow)}
+.stage-dot.done{background:var(--teal-dim);border-color:var(--teal);color:#fff}
+.stage-connector{width:20px;height:2px;background:var(--border);align-self:center;flex-shrink:0}
+.stage-connector.done{background:var(--teal-dim)}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:20px}
+.card-label{font-family:'DM Mono',monospace;font-size:11px;color:var(--teal);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px}
+.card-title{font-family:'Playfair Display',serif;font-size:22px;color:#fff;line-height:1.4;margin-bottom:8px}
+.card-sub{color:var(--text-dim);font-size:13px;line-height:1.6}
+
+/* QUESTION */
+.q-counter{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);margin-bottom:6px}
+.q-text{font-size:15px;line-height:1.7;color:var(--text);margin-bottom:20px;padding:16px;
+  background:var(--surface2);border-radius:8px;border-left:3px solid var(--teal)}
+
+/* OPTIONS */
+.options{display:flex;flex-direction:column;gap:10px}
+.opt{padding:14px 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);
+  cursor:pointer;font-size:14px;line-height:1.6;color:var(--text);transition:.2s;text-align:left}
+.opt:hover:not(.disabled){border-color:var(--teal);background:var(--teal-glow);color:#fff}
+.opt.correct{border-color:var(--correct);background:var(--correct-bg);color:var(--correct)}
+.opt.wrong{border-color:var(--wrong);background:var(--wrong-bg);color:var(--wrong)}
+.opt.reveal{border-color:var(--correct);background:var(--correct-bg);color:var(--correct)}
+.opt.disabled{cursor:default;pointer-events:none}
+
+/* ANALYSIS */
+.analysis{margin-top:16px;padding:16px;background:var(--surface3);border-radius:8px;border:1px solid var(--border);
+  font-size:13px;line-height:1.8;color:var(--text-dim);display:none}
+.analysis.show{display:block}
+.analysis strong{color:var(--teal);font-weight:500}
+
+/* PROGRESS BAR */
+.q-progress{height:3px;background:var(--border);border-radius:2px;margin-bottom:20px;overflow:hidden}
+.q-progress-fill{height:100%;background:var(--teal);border-radius:2px;transition:.4s}
+
+/* RING */
+.ring-wrap{display:flex;flex-direction:column;align-items:center;padding:32px 0}
+.ring-wrap svg{filter:drop-shadow(0 0 16px var(--teal-glow))}
+.ring-score{font-family:'Playfair Display',serif;font-size:32px;color:#fff;margin-top:16px}
+.ring-label{font-size:13px;color:var(--text-dim);margin-top:4px}
+.results-list{margin-top:24px;display:flex;flex-direction:column;gap:8px}
+.result-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;
+  background:var(--surface2);border-radius:6px;font-size:13px}
+.result-row .badge{font-family:'DM Mono',monospace;font-size:12px;padding:2px 8px;border-radius:4px}
+.badge.good{background:var(--correct-bg);color:var(--correct)}
+.badge.mid{background:rgba(210,153,34,.15);color:var(--warn)}
+.badge.low{background:var(--wrong-bg);color:var(--wrong)}
+
+/* FINAL */
+.final-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:24px 0}
+.final-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+.final-cell .num{font-family:'Playfair Display',serif;font-size:28px;color:var(--teal)}
+.final-cell .lbl{font-size:11px;color:var(--text-dim);margin-top:4px;line-height:1.4}
+
+/* BTN */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:8px;
+  border:none;cursor:pointer;font-size:14px;font-family:'Noto Sans TC',sans-serif;font-weight:500;transition:.2s}
+.btn-primary{background:var(--teal);color:#0d1117}
+.btn-primary:hover{background:#5eead4}
+.btn-outline{background:transparent;border:1px solid var(--teal);color:var(--teal)}
+.btn-outline:hover{background:var(--teal-glow)}
+.btn-center{display:flex;justify-content:center;margin-top:24px;gap:12px}
+
+/* NEXT HINT */
+.next-hint{text-align:center;margin-top:12px;font-size:12px;color:var(--text-faint);display:none}
+.next-hint.show{display:block}
+
+/* SECTION FADE */
+.section{animation:fadeIn .35s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* RESPONSIVE */
+@media(max-width:600px){.card{padding:18px}.q-text{font-size:14px}.opt{font-size:13px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+const STAGES = [
+{
+  id:1,
+  title:"呼吸道評估與策略制定",
+  subtitle:"困難氣道預測因子・清醒插管適應症・設備準備",
+  qs:[
+    {
+      text:"一位 62 歲男性，BMI 38，Mallampati III 級，頸部活動度受限（頸椎手術後），開口度 3.5 cm，甲頦距離 5 cm。麻醉前評估最重要的下一步是？",
+      opts:["直接安排全身麻醉快速誘導（RSI）","告知病人清醒插管計畫，取得知情同意","先完成術前 X 光再決定","預訂較小號的 ETT 即可"],
+      ans:1,
+      analysis:"<strong>清醒插管適應症</strong>：本案例具備多個困難氣道預測因子（Mallampati III、頸部活動受限、甲頦距離 ＜6 cm、BMI ≥35）且合併困難通氣風險因素。符合「預期困難氣道」的清醒插管指征。需在保留自主呼吸、氣道反射的情況下完成插管，並應事先取得知情同意、說明不適感及必要性。RSI 在此情境下若插管失敗後退路極為有限，風險不可接受。"
+    },
+    {
+      text:"LEMON 評估法中，「E」代表？",
+      opts:["Edema（水腫）","Evaluation（3-3-2 法則）","Emergency（緊急程度）","Epiglottis（會厭可視性）"],
+      ans:1,
+      analysis:"<strong>LEMON 法則</strong>：L＝Look externally（外觀評估）、E＝Evaluate（3-3-2 法則：開口 3 指、甲頦距離 3 指、甲舌骨距離 2 指）、M＝Mallampati、O＝Obstruction（氣道阻塞）、N＝Neck mobility（頸部活動度）。3-3-2 任一不符合即提示困難喉鏡暴露。"
+    },
+    {
+      text:"清醒光纖插管前局部麻醉，下列何者對聲門下區域（trachea）效果最直接？",
+      opts:["Lidocaine 噴霧至口咽部","舌神經阻斷","環甲膜穿刺注射 Lidocaine（transtracheal block）","上喉神經阻斷"],
+      ans:2,
+      analysis:"<strong>氣管內局部麻醉</strong>：環甲膜穿刺（transtracheal block）注入 2-4 mL 2-4% Lidocaine，病人吸氣時注射可使藥物被吸入聲門以下，麻醉聲帶下方及氣管黏膜，減少插管刺激。上喉神經阻斷麻醉聲帶上方及會厭；舌神經阻斷覆蓋舌後 1/3；口咽噴霧主要覆蓋口咽。三者合用可達完整上呼吸道麻醉。"
+    },
+    {
+      text:"困難氣道車（difficult airway cart）必備設備中，屬於「救援」（rescue）裝置的是？",
+      opts:["Macintosh 直接喉鏡備用葉片","探條（bougie）","環甲切開套件（surgical airway kit）","加長型吸引管"],
+      ans:2,
+      analysis:"<strong>氣道設備分層</strong>：困難氣道車設備依功能分層：第一線（喉鏡、插管管、探條）→ 第二線（SGA：LMA、i-gel）→ 救援裝置（外科氣道）。環甲切開套件（含 scalpel、bougie、cuffed ETT 或商業套件）屬於 CICO 情況下最後手段，必須置於易取得位置。"
+    },
+    {
+      text:"Mallampati 分級評估時，病人應採取什麼姿勢才能得到最準確的結果？",
+      opts:["仰臥、頭部中立位，張口最大","坐直或直立、頭部中立位、張口最大、不發聲","坐直、頭部後仰、發出「啊」聲","坐直、頭部前屈、張口"],
+      ans:1,
+      analysis:"<strong>Mallampati 標準評估法</strong>：病人坐直或直立，頭部保持中立（不後仰、不前屈），張口至最大，不發聲。發聲會使軟顎上提，人為地改善分級結果（可能從 III 降為 II）。後仰同樣會改善暴露，低估困難度。標準化姿勢確保評估的再現性與可比較性。"
+    }
+  ]
+},
+{
+  id:2,
+  title:"預先給氧與誘導流程",
+  subtitle:"EtO₂ ≥90% 標準・肥胖體位・RSI 現代概念・環狀軟骨壓迫",
+  qs:[
+    {
+      text:"充分預給氧（pre-oxygenation）的目標值為？",
+      opts:["SpO₂ ≥99%","呼末氧濃度（EtO₂）≥90%","FiO₂ 1.0 持續 3 分鐘，不需監測數值","EtO₂ ≥80% 即可接受"],
+      ans:1,
+      analysis:"<strong>預給氧目標</strong>：EtO₂（end-tidal O₂）≥90% 是公認標準，代表功能殘氣量（FRC）中 N₂ 已被充分清洗（氮氣洗出，nitrogen washout）。達此目標後，健康成人可提供約 8 分鐘的安全呼吸暫停時間（apnoeic oxygenation 配合高流量 O₂ 可進一步延長）。僅監測 SpO₂ 到 99% 不代表 FRC 已完成清洗，無法反映氧氣儲備量。"
+    },
+    {
+      text:"BMI 42 的病人進行 RSI 前，最佳體位為？",
+      opts:["仰臥平躺，頭部枕高枕","頭部抬高 20-30°（ramped position / head-elevated laryngoscopy position）","側臥位","半坐臥（30°）但不需頭部特別墊高"],
+      ans:1,
+      analysis:"<strong>肥胖病人體位</strong>：Ramped position（傾斜位）使外耳道與胸骨切跡齊平，通過將肩膀及上軀幹墊高（毯子堆疊或使用 HELP 枕）實現。此體位：①改善喉鏡暴露視野；②增加 FRC，延長安全呼吸暫停時間（肥胖者 FRC 顯著降低）；③降低誤吸風險（胃食道逆流壓力梯度較小）。"
+    },
+    {
+      text:"現代 RSI（rapid sequence induction）概念中，下列哪項已被重新評估而不再視為絕對要素？",
+      opts:["使用快速起效神經肌肉阻斷劑","避免面罩通氣（no bag-mask ventilation）","確認 EtO₂ 達標後才誘導","Succinylcholine 或 Rocuronium 擇一使用"],
+      ans:1,
+      analysis:"<strong>RSI 現代修正</strong>：傳統 RSI 嚴格禁止面罩通氣，以避免胃充氣增加誤吸風險。然而現代共識（包括 DAS 2015 guideline 及多個研究）認為：若預給氧不足或 SpO₂ 快速下降，輕柔的面罩通氣（&lt;20 cmH₂O）風險遠低於嚴重低氧。「Modified RSI」允許低壓輔助通氣。禁止面罩通氣已不再被視為現代 RSI 的絕對要求。"
+    },
+    {
+      text:"關於環狀軟骨壓迫（Sellick's manoeuvre），目前最符合實證的說法是？",
+      opts:["所有飽胃病人皆應常規施行，效果確定","可降低誤吸風險，但也可能惡化喉鏡視野，且有效性證據薄弱","壓迫力道應達 44 N 以確保食道完全閉合","清醒時不需要，只在誘導後施行"],
+      ans:1,
+      analysis:"<strong>環狀軟骨壓迫爭議</strong>：Sellick 原始描述（1961）建議清醒時施加 10 N、誘導後 30-44 N 的壓力。然而後續 MRI 研究顯示：食道位置並非總在正中線，壓迫效果因人而異。多個 RCT 及 Cochrane review 指出有效性證據薄弱，且可能惡化聲門視野、影響 LMA 置放及 FRC。目前觀點：可選擇性使用，若影響插管應立即解除，並非強制性措施。"
+    },
+    {
+      text:"Succinylcholine 1.5 mg/kg 與 Rocuronium 1.2 mg/kg 用於 RSI，比較下列何者正確？",
+      opts:["Succinylcholine 提供更長的肌松時間，適合預期困難氣道","Rocuronium 1.2 mg/kg 可用 Sugammadex 16 mg/kg 快速逆轉，在困難氣道情境下是優勢","Rocuronium 標準劑量 0.6 mg/kg 即可達 RSI 要求","兩者插管條件相同但 Succinylcholine 無藥物禁忌症"],
+      ans:1,
+      analysis:"<strong>RSI 藥物選擇</strong>：Rocuronium 1.2 mg/kg（2-3 倍 ED95）可在 60 秒內達到與 Succinylcholine 相當的插管條件，且可用 Sugammadex 16 mg/kg 在 3 分鐘內完全逆轉，這在「cannot intubate」情境下提供了恢復自主呼吸的選項。Succinylcholine 雖作用消退更快（自然消退），但有禁忌症（高血鉀、惡性高熱家族史、燒傷後 24h-1 年等），且一旦出現問題無法逆轉。"
+    }
+  ]
+},
+{
+  id:3,
+  title:"插管技術與失敗處置",
+  subtitle:"視訊喉鏡 JAMA 2024・DAS 2025 計畫 A-D・CICO・波形 CO₂",
+  qs:[
+    {
+      text:"依據 2024 年 JAMA 發表的大型 RCT（DEVICE trial 等），視訊喉鏡（video laryngoscope）與直接喉鏡（direct laryngoscope）比較，何者為真？",
+      opts:["視訊喉鏡在所有情境下首次插管成功率均顯著較高","視訊喉鏡可改善 ICU 及急診高風險病人的首次插管成功率，但 OR 中常規使用的絕對優勢證據仍有爭議","直接喉鏡在困難氣道情境下仍優於視訊喉鏡","視訊喉鏡主要優勢是縮短插管時間而非提升成功率"],
+      ans:1,
+      analysis:"<strong>JAMA 2024 視訊喉鏡證據</strong>：DEVICE trial（NEJM 2023）及多篇 meta-analysis 顯示，在 ICU 及急診高風險病人，VL 顯著提升首次插管成功率。手術室常規病人的優勢較不一致，部分研究顯示 DL 在熟練操作者下無顯著差異。困難氣道時 VL 的優勢更明確。現代共識傾向：VL 作為首選或早期採用工具，尤其在預期或非預期困難氣道。"
+    },
+    {
+      text:"DAS 2025 困難氣道指引中，Plan A 失敗後（2-3 次嘗試未成功），最優先的下一步是？",
+      opts:["立即呼叫外科進行緊急氣管切開","啟動 Plan B：置入聲門上氣道（SGA）","再嘗試 2 次直接喉鏡","立即宣告 CICO，準備 FONA"],
+      ans:1,
+      analysis:"<strong>DAS 2025 Plan A-D</strong>：Plan A（最多 3-4 次最佳化後喉鏡嘗試，含體位調整、外部喉部手法、換葉片/換喉鏡）→ Plan B（SGA 置放：LMA/i-gel，若通氣充足可考慮繼續手術或清醒）→ Plan C（面罩通氣維持氧合）→ Plan D（FONA：外科氣道）。每個 Plan 轉換的核心判斷是「SpO₂ 是否維持？」。絕不應反覆嘗試喉鏡超過建議次數，以避免氣道創傷與水腫惡化。"
+    },
+    {
+      text:"CICO（cannot intubate, cannot oxygenate）情境中，FONA 的標準技術首選為？",
+      opts:["Seldinger 技術（經皮穿刺擴張）","手術刀-探條-ETT 技術（scalpel-bougie technique）","緊急針穿刺環甲膜（needle cricothyrotomy）","環甲膜切開後直接置入氣管造口管"],
+      ans:1,
+      analysis:"<strong>FONA 首選技術</strong>：DAS 2015/2025 及多個指引均推薦「scalpel-bougie（scalpel-finger-bougie）技術」作為 CICO 的 FONA 首選：橫切環甲膜 → 手指鈎住確認位置 → 置入 bougie → 引導 cuffed ETT（6.0）進入氣管。針穿刺（needle cricothyrotomy）無法提供充分通氣（需高壓噴射系統），且在肥胖、頸部短的病人中定位困難，已不被推薦作為成人 FONA 首選。"
+    },
+    {
+      text:"插管後確認 ETT 位置，最可靠的方法是？",
+      opts:["聽診雙側呼吸音對稱","觀察胸廓起伏","持續波形二氧化碳監測（waveform capnography）","纖維支氣管鏡確認"],
+      ans:2,
+      analysis:"<strong>波形二氧化碳確認</strong>：持續波形 capnography 是確認 ETT 在氣管內的金標準（gold standard）。連續出現 ≥6 個規則的 CO₂ 波形，強力排除食道插管。聽診和胸廓起伏均可出現假陽性（食道插管若碳酸飲料等情況）。心跳停止時 EtCO₂ 可能極低甚至測不到，但仍應以波形存在與否判斷，而非僅看數值。"
+    },
+    {
+      text:"插管時探條（Eschmann stylet/bougie）最主要的使用時機是？",
+      opts:["Mallampati I 級的常規插管","喉鏡視野 Cormack-Lehane Grade III（僅見會厭，看不見聲帶）","視訊喉鏡使用時不需要 bougie","ETT 尺寸過小時用於引導"],
+      ans:1,
+      analysis:"<strong>Bougie 適應症</strong>：Cormack-Lehane Grade III（僅見會厭尖端）或 IIb（僅見後聲帶聯合）時，bougie 可在無法直視聲門的情況下，憑「點擊感」（tracheal clicks，滑過氣管軟骨環）和 45 cm 標記停止（進入支氣管）確認位置，再引導 ETT 進入。Grade I-IIa 通常不需要。使用視訊喉鏡時，若畫面清晰，bougie 反而可能使 ETT 通過聲門時有阻力，需斟酌使用。"
+    }
+  ]
+},
+{
+  id:4,
+  title:"併發症識別與處置",
+  subtitle:"喉痙攣・NPPE・支氣管痙攣・過敏反應・誤吸後抗生素",
+  qs:[
+    {
+      text:"全麻拔管後立即出現高調喘鳴聲（stridor）、SpO₂ 快速下降、通氣阻力極高，最可能的診斷與首要處置是？",
+      opts:["支氣管痙攣，立即給予 Salbutamol 吸入","喉痙攣，立即施行 Larson's manoeuvre 並給予持續正壓氣道（CPAP）","喉水腫，立即給予 Epinephrine 霧化吸入","NPPE，立即給予利尿劑"],
+      ans:1,
+      analysis:"<strong>喉痙攣處置流程</strong>：喉痙攣（laryngospasm）特徵為聲門完全或不完全關閉：高調喘鳴（partial）或完全無聲（complete）、通氣阻力高。首要處置：①100% O₂ 持續正壓（CPAP/jaw thrust）②<strong>Larson's manoeuvre</strong>：以雙手食指插入下頜骨後緣、乳突前方的「Larson's point」施壓，刺激迷走神經使聲門放鬆。若無效：③小劑量 Propofol 0.5 mg/kg 或 Succinylcholine 0.1-1.5 mg/kg（視情況選擇劑量）。完全性喉痙攣（無法通氣）應緊急給予 Succinylcholine。"
+    },
+    {
+      text:"拔管後數小時出現粉紅色泡沫狀痰液、嚴重低氧、胸部 X 光雙側肺浸潤，而病人無誤吸病史，最可能的診斷是？",
+      opts:["吸入性肺炎","心源性肺水腫","負壓性肺水腫（NPPE, negative pressure pulmonary edema）","ARDS"],
+      ans:2,
+      analysis:"<strong>負壓性肺水腫（NPPE）</strong>：NPPE 發生於用力吸氣對抗阻塞氣道（喉痙攣、咬住 ETT、氣道阻塞）時，胸內負壓驟增（可達 -50 至 -100 cmH₂O），使肺微血管靜水壓梯度急劇改變，液體快速滲漏至肺泡。特徵：拔管後數分鐘至 1-2 小時內出現；無誤吸史；SpO₂ 急劇下降；泡沫痰。處置：CPAP/PEEP、補充 O₂，嚴重時重新插管；利尿劑效果有限，不推薦常規使用。多在 12-24 小時內恢復。"
+    },
+    {
+      text:"術中突發嚴重支氣管痙攣，SpO₂ 下降，氣道壓力上升，首先應排除哪個診斷？",
+      opts:["氣管導管誤入右主支氣管","麻醉深度不足","ETT 氣囊過度充氣","分泌物堵塞"],
+      ans:0,
+      analysis:"<strong>支氣管痙攣鑑別診斷</strong>：ETT 進入右主支氣管（endobronchial intubation）會造成：①左肺塌陷（聽診左側呼吸音消失）②右肺過度充氣 ③SpO₂ 下降 ④氣道壓升高，與支氣管痙攣症狀高度相似。應立即聽診確認雙側呼吸音，並稍微後退 ETT。確認位置正確後，再處理真正的支氣管痙攣：加深麻醉（Sevoflurane 支氣管擴張效果優）、Salbutamol 吸入、必要時 Epinephrine 或 MgSO₄。"
+    },
+    {
+      text:"術中出現過敏性反應（anaphylaxis）：蕁麻疹、低血壓、SpO₂ 下降，最優先且最重要的藥物是？",
+      opts:["Hydrocortisone 200 mg IV","Chlorpheniramine（抗組織胺）IV","Epinephrine（Adrenaline）IM 或 IV","Salbutamol 吸入"],
+      ans:2,
+      analysis:"<strong>過敏性反應 Epinephrine 優先</strong>：Epinephrine 是過敏性反應唯一能同時逆轉所有病理生理機制的藥物：①α₁ 作用→血管收縮、升血壓 ②β₁ 作用→正性肌力 ③β₂ 作用→支氣管擴張、抑制肥大細胞進一步脫顆粒。IM 劑量 0.3-0.5 mg（1:1000），術中可 IV 給予 10-100 μg 緩慢推注。類固醇和抗組織胺僅為輔助，延遲 3-4 小時才起效，絕不能作為首選。延遲給予 Epinephrine 是過敏性反應死亡的主要原因。"
+    },
+    {
+      text:"病人術中發生誤吸胃內容物，術後應如何使用抗生素？",
+      opts:["立即給予廣效抗生素治療 5 天","立即給予抗生素預防化學性肺炎","不常規預防性給予抗生素，觀察 24-48 小時，出現感染徵象再使用","僅在誤吸量 ＞25 mL 時才給抗生素"],
+      ans:2,
+      analysis:"<strong>誤吸後抗生素原則</strong>：吸入性「肺炎」（aspiration pneumonitis）主因是胃酸的化學性損傷，而非細菌感染，立即給予抗生素並無預防效果，反而可能篩選出抗藥菌。正確處置：①立即吸引氣道 ②支持性治療（O₂、PEEP）③觀察 24-48 小時。若 48 小時後出現發燒、膿性痰、白血球升高、X 光浸潤惡化，則考慮吸入性「肺炎」（aspiration pneumonia）並依培養給予抗生素。社區型誤吸若有口腔衛生不佳，可考慮厭氧菌覆蓋。"
+    }
+  ]
+},
+{
+  id:5,
+  title:"拔管評估與殘餘阻斷",
+  subtitle:"TOF ratio ≥0.9・Sugammadex vs Neostigmine・困難氣道拔管・PRNB",
+  qs:[
+    {
+      text:"神經肌肉功能恢復的金標準評估指標為？",
+      opts:["TOF count ≥4（四個抽搐均可見）","TOF ratio ≥0.9（以加速度儀測量）","臨床評估：頭抬 5 秒、握力恢復","TOF ratio ≥0.7（傳統標準）"],
+      ans:1,
+      analysis:"<strong>TOF ratio ≥0.9 金標準</strong>：TOF（train-of-four）ratio 以定量加速度儀（AMG）或肌電圖（EMG）客觀測量，T4/T1 比值 ≥0.9 是神經肌肉功能充分恢復的公認標準。舊標準 0.7 已被廢棄，因 0.7-0.9 之間仍有臨床顯著的殘餘阻斷（PRNB）：上呼吸道塌陷增加、低氧通氣反應受損、吞嚥困難。TOF count ≥4 和臨床評估（頭抬、握力）均不夠敏感，無法可靠排除 PRNB。"
+    },
+    {
+      text:"使用 Rocuronium 後，TOF ratio 0.6，下列何種逆轉策略最恰當？",
+      opts:["Neostigmine 50 μg/kg + Glycopyrrolate，立即拔管","Sugammadex 2 mg/kg，確認 TOF ratio ≥0.9 後拔管","等待自然恢復至 TOF ratio ≥0.9","Neostigmine 70 μg/kg（最大劑量）以求最快逆轉"],
+      ans:1,
+      analysis:"<strong>Sugammadex vs Neostigmine</strong>：TOF ratio 0.6 屬中度阻斷，Neostigmine 在此程度的逆轉效率不穩定且有上限（天花板效應），可能導致逆轉不完全。Sugammadex（Steroidal NMB 如 Rocuronium/Vecuronium 專用）2 mg/kg 用於中度逆轉，4 mg/kg 用於深度阻斷（TOF count 1-2）。Sugammadex 優勢：逆轉速度快且完全、不需 antimuscarinic 拮抗、可用於 Neostigmine 禁忌情境。確認逆轉完成（AMG TOF ratio ≥0.9）後才拔管。"
+    },
+    {
+      text:"殘餘神經肌肉阻斷（PRNB）在拔管後最常見的臨床表現是？",
+      opts:["術後疼痛加劇","上呼吸道阻塞、低氧血症、吞嚥困難及誤吸風險增加","血壓下降","躁動及定向力障礙"],
+      ans:1,
+      analysis:"<strong>PRNB 臨床表現</strong>：TOF ratio 0.7-0.9 之間（PRNB）的主要影響是咽喉部及上呼吸道肌肉功能障礙：①咽喉部肌肉張力下降→軟組織塌陷→上呼吸道阻塞 ②低氧通氣反應受損（頸動脈體化學感受器敏感性降低）③吞嚥困難→誤吸風險 ④視力模糊、複視（眼外肌敏感）。PRNB 是術後呼吸系統併發症（PPCs）的獨立危險因子，是為何常規定量監測如此重要的原因。"
+    },
+    {
+      text:"已知困難氣道（術前評估）的病人完成手術後，拔管計畫應包含？",
+      opts:["達到標準拔管條件即可正常拔管","使用氣道交換導管（AEC）拔管，並預備重新插管設備與人員待命","先試探性拔管，若有問題再重新插管","困難氣道病人一律延遲拔管至隔日","仰賴 SGA 作為拔管過渡"],
+      ans:1,
+      analysis:"<strong>困難氣道清醒/計畫性拔管</strong>：DAS 指引建議困難氣道病人拔管應「計畫性進行」，而非常規拔管。策略：①氣道交換導管（AEC，如 Cook's AEC）插入並固定，拔出 ETT 後病人可繞著 AEC 呼吸，若需要重新插管可循導管引導。②在半坐臥位、清醒、完全恢復肌力後拔管（清醒拔管）。③人員與設備備齊（再插管設備、外科氣道備用）。④術後送往 ICU 或 HDU 監測。避免在深麻醉下拔管。"
+    },
+    {
+      text:"Neostigmine 用於逆轉神經肌肉阻斷時，必須同時給予 antimuscarinic 的主要原因是？",
+      opts:["增強 Neostigmine 的逆轉效果","拮抗 Neostigmine 的毒蕈鹼副作用（心搏過緩、分泌物增加、支氣管痙攣）","預防術後噁心嘔吐（PONV）","避免 Neostigmine 引起的高血壓"],
+      ans:1,
+      analysis:"<strong>Neostigmine + Antimuscarinic</strong>：Neostigmine 為乙醯膽鹼酯酶抑制劑（anticholinesterase），在神經肌肉接頭（菸鹼受體）累積 ACh 以逆轉阻斷，但同時也作用於毒蕈鹼受體（心臟、腺體、平滑肌），引起：心搏過緩、支氣管分泌物增加、支氣管痙攣、胃腸道蠕動增加、瞳孔縮小。必須同時給予 Glycopyrrolate（0.2 mg per 1 mg Neostigmine）或 Atropine 拮抗毒蕈鹼效應。Sugammadex 無此問題，因其作用機制與 ACh 系統無關。"
+    }
+  ]
+}
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const state={
+  screen:'home', // home | stage | stageResult | final
+  stageIdx:0,
+  qIdx:0,
+  answered:false,
+  scores:[0,0,0,0,0],
+  stageAnswers:[], // per question: true/false
+  allAnswers:[]   // array of arrays
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function $(id){return document.getElementById(id)}
+function render(){
+  const app=document.getElementById('app');
+  if(state.screen==='home') app.innerHTML=renderHome();
+  else if(state.screen==='stage') app.innerHTML=renderStage();
+  else if(state.screen==='stageResult') app.innerHTML=renderStageResult();
+  else if(state.screen==='final') app.innerHTML=renderFinal();
+  bindEvents();
+}
+
+function pct(n,total){return total===0?0:Math.round(n/total*100)}
+
+function ringPath(r,score,total){
+  const p=score/total;
+  const circ=2*Math.PI*36;
+  const dash=circ*p;
+  return dash+' '+(circ-dash);
+}
+
+function scoreColor(s,t){
+  const p=s/t;
+  if(p>=0.8) return 'good';
+  if(p>=0.6) return 'mid';
+  return 'low';
+}
+function scoreLabel(s,t){
+  const p=s/t;
+  if(p>=0.8) return '優秀';
+  if(p>=0.6) return '及格';
+  return '需加強';
+}
+
+function navDots(){
+  let h='';
+  STAGES.forEach((s,i)=>{
+    const done=i<state.stageIdx||(state.screen==='final');
+    const active=i===state.stageIdx&&state.screen==='stage';
+    const cls=done?'stage-dot done':active?'stage-dot active':'stage-dot';
+    h+=`<div class="${cls}">${done?'✓':(i+1)}</div>`;
+    if(i<STAGES.length-1){
+      h+=`<div class="stage-connector ${done?'done':''}"></div>`;
+    }
+  });
+  return `<div class="stage-nav">${h}</div>`;
+}
+
+// ─── SCREENS ─────────────────────────────────────────────────────────────────
+function renderHome(){
+  return `<div class="section">
+  <div class="game-header">
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--teal);letter-spacing:.15em;margin-bottom:12px">AIRWAY MANAGEMENT TRAINING</div>
+    <h1>呼吸道管理<br>臨床訓練</h1>
+    <p style="margin-top:12px">5 關・各 5 題・情境選擇題・含臨床解析</p>
+  </div>
+  <div class="card">
+    <div class="card-label">關卡總覽</div>
+    ${STAGES.map((s,i)=>`
+    <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;${i<STAGES.length-1?'border-bottom:1px solid var(--border)':''}">
+      <div style="min-width:28px;height:28px;border-radius:50%;background:var(--teal-dim);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:12px;color:#fff;flex-shrink:0">${i+1}</div>
+      <div>
+        <div style="font-weight:500;font-size:14px;margin-bottom:2px">${s.title}</div>
+        <div style="font-size:12px;color:var(--text-dim)">${s.subtitle}</div>
+      </div>
+    </div>`).join('')}
+  </div>
+  <div class="btn-center">
+    <button class="btn btn-primary" id="startBtn">開始訓練</button>
+  </div>
+  </div>`;
+}
+
+function renderStage(){
+  const stage=STAGES[state.stageIdx];
+  const q=stage.qs[state.qIdx];
+  const prog=((state.qIdx)/stage.qs.length)*100;
+  return `<div class="section">
+  ${navDots()}
+  <div class="card" style="border-color:var(--teal-dim)">
+    <div class="card-label">關卡 ${state.stageIdx+1} / ${STAGES.length}</div>
+    <div class="card-title">${stage.title}</div>
+    <div class="card-sub">${stage.subtitle}</div>
+  </div>
+  <div class="q-progress"><div class="q-progress-fill" style="width:${prog}%"></div></div>
+  <div class="card">
+    <div class="q-counter">問題 ${state.qIdx+1} / ${stage.qs.length}</div>
+    <div class="q-text">${q.text}</div>
+    <div class="options" id="opts">
+      ${q.opts.map((o,i)=>`<button class="opt" data-i="${i}">${String.fromCharCode(65+i)}. ${o}</button>`).join('')}
+    </div>
+    <div class="analysis" id="analysis">${q.analysis}</div>
+  </div>
+  <div class="next-hint" id="nextHint" style="display:none">
+    <button class="btn btn-outline" id="nextBtn" style="margin:0 auto">${state.qIdx<stage.qs.length-1?'下一題 →':'查看本關結果 →'}</button>
+  </div>
+  </div>`;
+}
+
+function renderRing(score,total){
+  const circ=2*Math.PI*36;
+  const p=score/total;
+  const dash=circ*p;
+  const color=p>=0.8?'var(--correct)':p>=0.6?'var(--warn)':'var(--wrong)';
+  return `<svg width="100" height="100" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="36" fill="none" stroke="var(--border)" stroke-width="8"/>
+    <circle cx="50" cy="50" r="36" fill="none" stroke="${color}" stroke-width="8"
+      stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${circ/4}"
+      stroke-linecap="round" transform="rotate(-90 50 50)" style="transition:stroke-dasharray 0.8s ease"/>
+    <text x="50" y="54" text-anchor="middle" font-family="Playfair Display,serif" font-size="20" fill="#fff">${score}/${total}</text>
+  </svg>`;
+}
+
+function renderStageResult(){
+  const stage=STAGES[state.stageIdx];
+  const score=state.scores[state.stageIdx];
+  const total=stage.qs.length;
+  const isLast=state.stageIdx===STAGES.length-1;
+  return `<div class="section">
+  ${navDots()}
+  <div class="card">
+    <div class="card-label">關卡 ${state.stageIdx+1} 結果</div>
+    <div class="card-title">${stage.title}</div>
+  </div>
+  <div class="card">
+    <div class="ring-wrap">${renderRing(score,total)}
+      <div class="ring-score">${score} / ${total}</div>
+      <div class="ring-label">${scoreLabel(score,total)} · 正確率 ${pct(score,total)}%</div>
+    </div>
+    <div class="results-list">
+      ${stage.qs.map((q,i)=>{
+        const ok=state.stageAnswers[i];
+        return `<div class="result-row">
+          <span style="font-size:13px">Q${i+1}. ${q.opts[q.ans].substring(0,30)}…</span>
+          <span class="badge ${ok?'good':'low'}">${ok?'✓ 正確':'✗ 錯誤'}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="btn-center">
+    <button class="btn btn-primary" id="nextStageBtn">${isLast?'查看總成績 →':'下一關 →'}</button>
+  </div>
+  </div>`;
+}
+
+function renderFinal(){
+  const total=STAGES.reduce((a,s)=>a+s.qs.length,0);
+  const totalScore=state.scores.reduce((a,b)=>a+b,0);
+  const overall=pct(totalScore,total);
+  return `<div class="section">
+  <div class="game-header">
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--teal);letter-spacing:.15em;margin-bottom:12px">TRAINING COMPLETE</div>
+    <h1>訓練完成</h1>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="ring-wrap">${renderRing(totalScore,total)}
+      <div class="ring-score">${totalScore} / ${total}</div>
+      <div class="ring-label">整體正確率 ${overall}%</div>
+    </div>
+    <div style="margin-top:8px;font-size:14px;color:var(--text-dim)">
+      ${overall>=80?'臨床判斷力優秀，繼續保持。':overall>=60?'基礎穩固，建議複習錯誤題目的臨床解析。':'建議搭配指引文件重新複習各關卡重點。'}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-label">各關成績</div>
+    <div class="final-grid">
+      ${STAGES.map((s,i)=>`
+      <div class="final-cell">
+        <div class="num" style="color:${state.scores[i]/s.qs.length>=0.8?'var(--correct)':state.scores[i]/s.qs.length>=0.6?'var(--warn)':'var(--wrong)'}">${state.scores[i]}/${s.qs.length}</div>
+        <div class="lbl">關卡 ${i+1}<br>${s.title.substring(0,8)}…</div>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="btn-center">
+    <button class="btn btn-outline" id="restartBtn">重新開始</button>
+  </div>
+  </div>`;
+}
+
+// ─── EVENTS ──────────────────────────────────────────────────────────────────
+function bindEvents(){
+  const startBtn=$('startBtn');
+  if(startBtn) startBtn.addEventListener('click',()=>{
+    state.screen='stage';state.stageIdx=0;state.qIdx=0;
+    state.answered=false;state.stageAnswers=[];render();
+  });
+
+  const opts=document.querySelectorAll('.opt');
+  opts.forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      if(state.answered) return;
+      state.answered=true;
+      const chosen=parseInt(btn.dataset.i);
+      const stage=STAGES[state.stageIdx];
+      const q=stage.qs[state.qIdx];
+      const correct=chosen===q.ans;
+      if(correct){
+        state.scores[state.stageIdx]++;
+        state.stageAnswers.push(true);
+      } else {
+        state.stageAnswers.push(false);
+      }
+      opts.forEach((b,i)=>{
+        b.classList.add('disabled');
+        if(i===q.ans) b.classList.add('correct');
+        else if(i===chosen&&!correct) b.classList.add('wrong');
+      });
+      const analysis=$('analysis');
+      if(analysis) analysis.classList.add('show');
+      const hint=$('nextHint');
+      if(hint) hint.style.display='block';
+      const nextBtn=$('nextBtn');
+      if(nextBtn) nextBtn.addEventListener('click',goNext);
+    });
+  });
+
+  const nextStageBtn=$('nextStageBtn');
+  if(nextStageBtn) nextStageBtn.addEventListener('click',()=>{
+    if(state.stageIdx===STAGES.length-1){
+      state.screen='final';render();
+    } else {
+      state.stageIdx++;state.qIdx=0;state.answered=false;state.stageAnswers=[];
+      state.screen='stage';render();
+    }
+  });
+
+  const restartBtn=$('restartBtn');
+  if(restartBtn) restartBtn.addEventListener('click',()=>{
+    state.screen='home';state.stageIdx=0;state.qIdx=0;
+    state.answered=false;state.scores=[0,0,0,0,0];
+    state.stageAnswers=[];state.allAnswers=[];render();
+  });
+}
+
+function goNext(){
+  const stage=STAGES[state.stageIdx];
+  if(state.qIdx<stage.qs.length-1){
+    state.qIdx++;state.answered=false;state.screen='stage';render();
+  } else {
+    state.screen='stageResult';render();
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
